@@ -1,0 +1,15 @@
+# all dot-folders (.yipyip, .claude, ...)
+.*/
+
+# C build artifacts
+*.o
+*.obj
+*.a
+*.so
+*.out
+*.d
+*.gch
+a.out
+client
+server
+core
