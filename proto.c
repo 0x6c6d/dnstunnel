@@ -1,10 +1,10 @@
 #include "proto.h"
 
-int parse_ip(const char *str, struct in_addr *out) {
+static int parse_ip(const char *str, struct in_addr *out) {
     return inet_pton(AF_INET, str, out) == 1;
 }
 
-int parse_port(const char *str) {
+static int parse_port(const char *str) {
     char *end;
     errno = 0;
     long port = strtol(str, &end, 10);
@@ -26,14 +26,14 @@ int parse_target(const char *target, struct sockaddr_in *out) {
     }
 
     // check if ip is valid
-    size_t len = (size_t)(colon - target);
-    if (len == 0 || len > INET_ADDRSTRLEN) {
+    size_t ip_len = (size_t)(colon - target);
+    if (ip_len == 0 || ip_len > INET_ADDRSTRLEN) {
         return -1;
     }
 
     char ip_str[INET_ADDRSTRLEN];
-    memcpy(ip_str, target, len);
-    ip_str[len] = '\0';
+    memcpy(ip_str, target, ip_len);
+    ip_str[ip_len] = '\0';
 
     struct in_addr ip;
     if (!parse_ip(ip_str, &ip)) {
@@ -41,8 +41,21 @@ int parse_target(const char *target, struct sockaddr_in *out) {
     }
 
     // check port
+    char port_str[6];
+    size_t port_len = strlen(colon + 1);
+    memcpy(port_str, colon + 1, port_len);
+    port_str[port_len] = '\0';
+    int port = parse_port(port_str);
+    if (port == -1) {
+        return -1;
+    }
 
-    return -1;
+    // sockaddr_in struct
+    *out = (struct sockaddr_in){.sin_family = AF_INET,
+                                .sin_addr = ip,
+                                .sin_port = htons((uint16_t)port)};
+
+    return 0;
 }
 
 size_t b32enc(unsigned char *dst, size_t cap, const unsigned char *src,
