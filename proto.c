@@ -72,5 +72,5 @@ size_t b32enc(unsigned char *dst, size_t cap, const unsigned char *src,
         int chars = ((int)bs * 8 + 4) / 5;
     }
 
-    return 0;
+    return o;
 }
