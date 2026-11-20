@@ -11,7 +11,7 @@
 #include <sys/socket.h>
 
 int parse_target(const char *target, struct sockaddr_in *out);
-size_t b32enc(unsigned char *dst, size_t cap, const unsigned char *src,
-              size_t n);
+size_t b32enc(const unsigned char *in, size_t in_len, uint16_t cap,
+              unsigned char *out)
 
 #endif

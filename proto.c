@@ -1,4 +1,7 @@
 #include "proto.h"
+#include <stdint.h>
+
+static const char B32[] = "abcdefghijklmnopqrstuvwxyz234567";
 
 static int parse_ip(const char *str, struct in_addr *out) {
     return inet_pton(AF_INET, str, out) == 1;
@@ -58,18 +61,42 @@ int parse_target(const char *target, struct sockaddr_in *out) {
     return 0;
 }
 
-size_t b32enc(unsigned char *dst, size_t cap, const unsigned char *src,
-              size_t n) {
-    static const char alpha[] = "abcdefghijklmnopqrstuvwxyz234567";
+size_t b32enc(const unsigned char *in, size_t in_len, uint16_t cap,
+              unsigned char *out) {
+    if (in_len == 0 || in_len > (size_t)cap)
+        return 0;
+
+    // dns has LDH rule (letters, digits, hyphens)
+    // no '=' as padding char allowed + unnecessary overhead
+
+    // Hi -> ASCII: 72 105 -> 01001000 01101001
+    // in = 2 chars = 2 byte = 16 bit -> needs 4 blocks a 5 bit (16 fit into 20)
+    // 5 bit blocks: 01001 00001 10100 10000
+    // 5 bit blocks:   J     B     U     Q
+
+    uint32_t buf = 0;
+    int bits = 0;
     size_t o = 0;
 
-    // walk input in 5 byte blocks
-    for (size_t i = 0; i < n; i += 5) {
-        // block size: 1-5 (only the last block can be 5 or smaller)
-        size_t bs = n - i < 5 ? n - i : 5;
-        uint64_t v = 0;
-        // find characters a block needs ()
-        int chars = ((int)bs * 8 + 4) / 5;
+    for (int i = 0; i < in_len; i++) {
+        // push 8 empty bits into buffer (buf << 8) and write bits from input
+        // into it with OR operation (| in[i])
+        buf = (buf << 8) | in[i];
+        bits += 8;
+
+        // iterate over as many 5 bit blocks as the buffer holds
+        while (bits >= 5) {
+            // buf >> (bits - 5): move most left (oldest) 5 bits to the right
+            // (newest) & 0x1F: mask with 000 11111 (only lowest 5 bits of byte
+            // stay) B32[]: look up char from b32 alphabet and add it to out
+            out[o++] = B32[(buf >> (bits - 5)) & 0x1f];
+            bits -= 5;
+        }
+    }
+
+    if (bits > 0) {
+        // pad the leftover bits (1-4) to the rigt
+        out[o++] = B32[buf << (5 - bits) & 0x1F];
     }
 
     return o;

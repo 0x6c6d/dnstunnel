@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
     p += 6;
 
     // base32 encode payload
-    size_t b32_len = b32enc(b32, MAXB32, payload, n);
+    size_t b32_len = b32enc(b32, sizeof(b32), MAXB32, payload);
     if (b32_len == 0) {
         fprintf(stderr, "max. payload bytes are %d\n", MAXPAYLOAD);
         return EXIT_FAILURE;
