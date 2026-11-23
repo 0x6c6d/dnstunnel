@@ -39,12 +39,12 @@ int main(int argc, char *argv[]) {
     }
 
     // payload check
-    size_t n = strlen(argv[1]);
-    if (!n || n > MAXPAYLOAD) {
+    size_t input_len = strlen(argv[1]);
+    if (!input_len || input_len > MAXPAYLOAD) {
         fprintf(stderr, "max. payload bytes are %d\n", MAXPAYLOAD);
         return EXIT_FAILURE;
     }
-    memcpy(payload, argv[1], n);
+    memcpy(payload, argv[1], input_len);
 
     // ip:port check
     // {0} also sets sin_zero = 0;
@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
     p += 6;
 
     // base32 encode payload
-    size_t b32_len = b32enc(b32, sizeof(b32), MAXB32, payload);
+    size_t b32_len = b32enc(payload, input_len, MAXB32, b32);
     if (b32_len == 0) {
         fprintf(stderr, "max. payload bytes are %d\n", MAXPAYLOAD);
         return EXIT_FAILURE;

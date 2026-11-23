@@ -7,7 +7,7 @@ static int parse_ip(const char *str, struct in_addr *out) {
     return inet_pton(AF_INET, str, out) == 1;
 }
 
-static int parse_port(const char *str) {
+int parse_port(const char *str) {
     char *end;
     errno = 0;
     long port = strtol(str, &end, 10);
@@ -30,7 +30,7 @@ int parse_target(const char *target, struct sockaddr_in *out) {
 
     // check if ip is valid
     size_t ip_len = (size_t)(colon - target);
-    if (ip_len == 0 || ip_len > INET_ADDRSTRLEN) {
+    if (ip_len == 0 || ip_len >= INET_ADDRSTRLEN) {
         return -1;
     }
 
@@ -44,11 +44,7 @@ int parse_target(const char *target, struct sockaddr_in *out) {
     }
 
     // check port
-    char port_str[6];
-    size_t port_len = strlen(colon + 1);
-    memcpy(port_str, colon + 1, port_len);
-    port_str[port_len] = '\0';
-    int port = parse_port(port_str);
+    int port = parse_port(colon + 1);
     if (port == -1) {
         return -1;
     }
@@ -78,7 +74,7 @@ size_t b32enc(const unsigned char *in, size_t in_len, uint16_t cap,
     int bits = 0;
     size_t o = 0;
 
-    for (int i = 0; i < in_len; i++) {
+    for (size_t i = 0; i < in_len; i++) {
         // push 8 empty bits into buffer (buf << 8) and write bits from input
         // into it with OR operation (| in[i])
         buf = (buf << 8) | in[i];
