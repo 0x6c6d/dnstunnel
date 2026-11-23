@@ -7,21 +7,24 @@
 #include <unistd.h>
 
 static void usage(const char *program) {
-    fprintf(stderr, "usage: %s <port>\n", program);
+    fprintf(stderr, "usage: %s [port:optional]\n", program);
 }
 
 int main(int argc, char *argv[]) {
     unsigned char q[512], *p = q;
 
-    if (argc != 2) {
+    int port = 5353;
+    if (argc > 2) {
         usage(argv[0]);
         return EXIT_FAILURE;
     }
 
-    int port = parse_port(argv[1]);
-    if (port == -1) {
-        fprintf(stderr, "invalid port number\n");
-        return EXIT_FAILURE;
+    if (argc == 2) {
+        port = parse_port(argv[1]);
+        if (port == -1) {
+            fprintf(stderr, "invalid port number\n");
+            return EXIT_FAILURE;
+        }
     }
 
     // socket
@@ -33,8 +36,16 @@ int main(int argc, char *argv[]) {
 
     struct sockaddr_in addr = {0};
     addr.sin_family = AF_INET;
+    // wildcard addr 0.0.0.0: listen to every IPv4 address this machine has
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(port);
+
+    int one = 1;
+    // sets option reuseaddr to on (1): tells kernel that new listening sockets
+    // can bind regardless of TIME_WAIT
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) < 0) {
+        perror("setsockopt(SO_REUSEADDR)"); // non-fatal
+    }
 
     if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         fprintf(stderr, "error during bind()\n");
@@ -42,7 +53,32 @@ int main(int argc, char *argv[]) {
         return EXIT_FAILURE;
     }
 
-    // dns header
+    socklen_t alen = sizeof(addr);
+    // asks kernel which local address and port the socket is bound to
+    // if bind with port 0 kernel picks a free port
+    if (getsockname(fd, (struct sockaddr *)&addr, &alen) == 0) {
+        printf("listening on udp port %u\n", ntohs(addr.sin_port));
+    }
+
+    for (;;) {
+        struct sockaddr_in peer;
+        socklen_t plen = sizeof(peer);
+
+        ssize_t n =
+            recvfrom(fd, q, sizeof(q), 0, (struct sockaddr *)&peer, &plen);
+        if (n < 0) {
+            if (errno == EINTR)
+                continue;       // interrupted by signal: retry
+            perror("recvfrom"); // anything else: log but dont exit
+            continue;
+        }
+
+        char ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &peer.sin_addr, ip, sizeof(ip));
+        printf("%zd bytes from %s:%u\n", n, ip, ntohs(peer.sin_port));
+
+        // step 3-9
+    }
 
     return 0;
 }
@@ -69,17 +105,6 @@ int main(int argc, char *argv[]) {
  *   - response budget is 512 bytes unless you accept EDNS(0) OPT handling
  *
  * Steps:
- *
- *  1. Pick the listening endpoint: a UDP port (argv[1] or a constant) bound on
- *     INADDR_ANY so BIND/iptables/recursor can forward to it. Validate it.
- *     Do not use connect() on the listening socket; a bound unconnected UDP
- *     socket receives from every peer.
- *
- *  2. Create SOCK_DGRAM, set SO_REUSEADDR, bind, report the actual port.
- *     Loop forever on recvfrom() with a 512+ byte stack buffer and a
- *     sockaddr_in peer that recvfrom() fills in. Handle EINTR by continuing
- *     and any other errno by logging, not exiting. Optionally print peer
- *     ip:port and datagram length for debugging.
  *
  *  3. Parse defensively; every read needs a bounds check before it:
  *     - datagram shorter than 12 bytes: no header, drop it
