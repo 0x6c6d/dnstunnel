@@ -57,20 +57,20 @@ int main(int argc, char *argv[]) {
     // dns header
     uint16_t id =
         (uint16_t)arc4random();      // get random id (prevents cache poisoning)
-    *p++ = (unsigned char)(id >> 8); // 1 byte: id high byte
-    *p++ = (unsigned char)(id & 0xff); // 2 byte: id low byte
+    *p++ = (unsigned char)(id >> 8); // byte 0: id high byte
+    *p++ = (unsigned char)(id & 0xff); // byte 1: id low byte
                                        // query (0) opcode (0000) aa(0) tc (0)
                                        // rd (1) -> 0 0000 0 0 1
-    *p++ = 0x01; // 3 byte:  flags high byte (query, standard query,
+    *p++ = 0x01; // byte 2:  flags high byte (query, standard query,
                  // !authoritive answer, !truncated, recursive)
                  // only make sense in response: ra (0) z (000) rcode (0000) ->
                  // 0 000 0000
-    *p++ = 0x00; // 4 byte:  flags low byte (recursion available,
+    *p++ = 0x00; // byte 3:  flags low byte (recursion available,
                  //          reserved bits, response code)
     // question count
-    *p++ = 0x00;     // 5 byte: qdcount high byte
-    *p++ = 0x01;     // 6 byte: qdcount low byte
-    memset(p, 0, 6); // 7 - 12 byte: ancount, nscount, arcount
+    *p++ = 0x00;     // byte 4: qdcount high byte
+    *p++ = 0x01;     // byte 5: qdcount low byte
+    memset(p, 0, 6); // bytes 6-11: ancount, nscount, arcount
     p += 6;
 
     // base32 encode payload

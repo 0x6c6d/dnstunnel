@@ -77,7 +77,31 @@ int main(int argc, char *argv[]) {
         inet_ntop(AF_INET, &peer.sin_addr, ip, sizeof(ip));
         printf("%zd bytes from %s:%u\n", n, ip, ntohs(peer.sin_port));
 
-        // step 3-9
+        // parse bytes send by client
+
+        // drop silently: prevent amplification attack
+        if (n < 12) {
+            fprintf(stderr, "no proper header\n");
+            continue;
+        }
+
+        uint8_t b2 = q[1];
+        uint8_t qr = (b2 >> 7) & 0x01;
+        uint8_t opcode = (b2 >> 3) & 0x0F;
+        uint8_t rd = 0x01;
+        if (qr != 0 || opcode != 0) {
+            // response and not a query: drop it
+            if (qr != 0)
+                continue;
+
+            unsigned char r[12]; // header only reply
+            memset(r, 0, sizeof r);
+            r[0] = q[0];           // copy id from request
+            r[1] = q[1];           // id = 2 bytes
+            r[2] = 0x80            // QR = 1
+                   | (opcode << 3) // echo opcodes from request
+                   | (b2 & 0x01);  // echo RD
+        }
     }
 
     return 0;
