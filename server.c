@@ -92,34 +92,24 @@ int main(int argc, char *argv[]) {
             if (qr != 0)
                 continue;
 
-            // query is not standard: reply with NOTIMP (not implemented)
-            unsigned char r[12]; // header only reply
-            memset(r, 0, sizeof r);
-            r[0] = q[0];           // copy id from request
-            r[1] = q[1];           // id = 2 bytes
-            r[2] = 0x80            // QR = 1 (1000 0000)
-                   | (opcode << 3) // echo opcodes from request
-                   | (b2 & 0x01);  // echo RD
-            r[3] = 0x02;           // 0000 0010: RCODE = 2 (NOTIMP)
-            // QD/AN/NS/ARCOUNT stay 0 from memset
-            sendto(fd, r, sizeof r, 0, (struct sockaddr *)&peer, plen);
+            // query is not standard: reply with NOTIMP (RCODE 4)
+            send_error(fd, q, 4, &peer, plen);
             continue;
         }
 
         // QDCOUNT: 16-bit big-endian field at offset [4..5]
         uint16_t qdcount = ((uint16_t)q[4] << 8) | q[5];
         if (qdcount != 1) {
-            unsigned char r[12];
-            memset(r, 0, sizeof r);
-            r[0] = q[0];
-            r[1] = q[1];
-            r[2] = 0x80 | (opcode << 3) | (b2 & 0x01);
-            r[3] = 0x01; // 0000 0001: RCODE = 1 (FORMERR)
-            sendto(fd, r, sizeof r, 0, (struct sockaddr *)&peer, plen);
+            send_error(fd, q, 1, &peer, plen); // FORMERR
             continue;
         }
 
         // walk qname
+        qname_t qname = {0};
+        if (walk_qname(q, (size_t)n, 12, &qname) < 0) {
+            send_error(fd, q, 1, &peer, plen); // FORMERR
+            continue;
+        }
     }
 
     return 0;

@@ -26,5 +26,7 @@ int parse_target(const char *target, struct sockaddr_in *out);
 size_t b32enc(const unsigned char *in, size_t in_len, uint16_t cap,
               unsigned char *out);
 int walk_qname(const uint8_t *pkt, size_t n, size_t start, qname_t *out);
+void send_error(int fd, const unsigned char *q, uint8_t rcode,
+                const struct sockaddr_in *peer, socklen_t plen);
 
 #endif

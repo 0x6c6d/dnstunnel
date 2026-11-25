@@ -136,9 +136,9 @@ int walk_qname(const uint8_t *pkt, size_t n, size_t start, qname_t *out) {
     out->count = 0;
 
     for (;;) {
-        // 1. is there a length byte to read?
+        // is there a length byte to read?
         // n: sizeof q (bytes received)
-        if (pos > n) {
+        if (pos >= n) {
             return -1;
         }
 
@@ -155,23 +155,38 @@ int walk_qname(const uint8_t *pkt, size_t n, size_t start, qname_t *out) {
             return -1;
         }
 
-        // labels last byte must lie insided received bytes
+        // labels last byte must lie inside received bytes
         // pos + 1 (label start byte) + (label len) > bytes received
         if (pos + 1 + len > n) {
             return -1;
         }
-        // 5. the name must stay within 255 bytes
-        //    TODO: total + 1 + len must stay <= 254 (root byte counts too)
 
-        // 6. room in the array?
-        //    TODO: out->count must be < 16 -> else return -1
+        // name cant exceed 255 bytes (254 because 1 byte is reserved
+        // for the root byte)
+        // + 1: label's length byte
+        if (total + len + 1 > 254) {
+            return -1;
+        }
 
-        // 7. store the label and advance
-        //    TODO: items[count] = { pos + 1, len }; count++
-        //    TODO: total += 1 + len; pos += 1 + len;
+        // struct can only store 16 labels
+        if (out->count > 15) {
+            return -1;
+        }
+
+        out->items[out->count++] = (label_t){(uint16_t)(pos + 1), len};
+        total += 1 + len;
+        pos += 1 + len;
     }
 
-    while (label_len > 0) {
-        out->items
-    }
+    return 0;
+}
+
+void send_error(int fd, const unsigned char *q, uint8_t rcode,
+                const struct sockaddr_in *peer, socklen_t plen) {
+    unsigned char r[12] = {0};
+    r[0] = q[0];
+    r[1] = q[1];
+    r[2] = 0x80 | (q[2] & 0x78) | (q[2] & 0x01); // QR=1, echo opcode and RD
+    r[3] = rcode;
+    sendto(fd, r, sizeof r, 0, (const struct sockaddr *)peer, plen);
 }
