@@ -97,3 +97,81 @@ size_t b32enc(const unsigned char *in, size_t in_len, uint16_t cap,
 
     return o;
 }
+
+/*
+ * QNAME walk: example packet, n = 56
+ * qname = nbswy3dpebsg44zaor2w43tfnq.t.htons.de  (b32 of "hello dns tunnel")
+ *
+ *   offset  0           11 12 13..32 33 34..39 40 41 42 43..47 48 49..50
+ * 51 52..53 54..55
+ *          +--------------+--+------+--+------+--+--+--+------+--+------+--+------+------+
+ *          | header (12B) |14| 20 B |06| 6 B  |01| t|05|htons |02|  de
+ * |00|QTYPE |QCLASS|
+ *          +--------------+--+------+--+------+--+--+--+------+--+------+--+------+------+
+ *                          ^         ^         ^     ^          ^        ^
+ *                        pos=12    pos=33    pos=40 pos=42    pos=48   pos=51
+ * (root)
+ *
+ * every label is [len][len bytes]; the next label starts at pos + 1 + len:
+ *
+ *   pos=12  len=20  "nbswy3dpebsg44zaor2w"  -> pos = 12 + 1 + 20 = 33
+ *   pos=33  len= 6  "43tfnq"                -> pos = 33 + 1 +  6 = 40
+ *   pos=40  len= 1  "t"                     -> pos = 40 + 1 +  1 = 42
+ *   pos=42  len= 5  "htons"                 -> pos = 42 + 1 +  5 = 48
+ *   pos=48  len= 2  "de"                    -> pos = 48 + 1 +  2 = 51
+ *   pos=51  len= 0  root, stop              -> pos = 52 (QTYPE starts here)
+ *
+ * result of the walk:
+ *   labels[0] = {off 13, len 20}  payload  \ concatenate in step 5
+ *   labels[1] = {off 34, len  6}  payload  /
+ *   labels[2] = {off 41, len  1}  "t"      \
+ *   labels[3] = {off 43, len  5}  "htons"   > suffix, checked in step 4
+ *   labels[4] = {off 49, len  2}  "de"     /
+ *   end       = 52                where QTYPE/QCLASS begin
+ *   name size = 40 encoded bytes (length bytes + labels + root), limit 255
+ */
+int walk_qname(const uint8_t *pkt, size_t n, size_t start, qname_t *out) {
+    size_t pos = start;
+    size_t total = 0;
+    out->count = 0;
+
+    for (;;) {
+        // 1. is there a length byte to read?
+        // n: sizeof q (bytes received)
+        if (pos > n) {
+            return -1;
+        }
+
+        uint8_t len = pkt[pos];
+
+        if (len == 0) {
+            // end is meant to be where qtype starts
+            out->end = pos + 1;
+            return 0;
+        }
+
+        // max. label length can be 63
+        if (len > 63) {
+            return -1;
+        }
+
+        // labels last byte must lie insided received bytes
+        // pos + 1 (label start byte) + (label len) > bytes received
+        if (pos + 1 + len > n) {
+            return -1;
+        }
+        // 5. the name must stay within 255 bytes
+        //    TODO: total + 1 + len must stay <= 254 (root byte counts too)
+
+        // 6. room in the array?
+        //    TODO: out->count must be < 16 -> else return -1
+
+        // 7. store the label and advance
+        //    TODO: items[count] = { pos + 1, len }; count++
+        //    TODO: total += 1 + len; pos += 1 + len;
+    }
+
+    while (label_len > 0) {
+        out->items
+    }
+}
